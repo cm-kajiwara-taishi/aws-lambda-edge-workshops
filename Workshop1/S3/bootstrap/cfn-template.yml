@@ -6,15 +6,7 @@ Resources:
     Properties:
       RoleName: !Sub
         - ws-lambda-at-edge-basic-${UniqueId}
-        - UniqueId: !Select
-            - 0
-            - !Split
-              - '-'
-              - !Select
-                - 2
-                - !Split
-                  - /
-                  - !Ref 'AWS::StackId'
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
       Path: /
@@ -33,15 +25,7 @@ Resources:
     Properties:
       RoleName: !Sub
         - ws-lambda-at-edge-read-only-${UniqueId}
-        - UniqueId: !Select
-            - 0
-            - !Split
-              - '-'
-              - !Select
-                - 2
-                - !Split
-                  - /
-                  - !Ref 'AWS::StackId'
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
@@ -62,15 +46,7 @@ Resources:
     Properties:
       RoleName: !Sub
         - ws-lambda-at-edge-full-access-${UniqueId}
-        - UniqueId: !Select
-            - 0
-            - !Split
-              - '-'
-              - !Select
-                - 2
-                - !Split
-                  - /
-                  - !Ref 'AWS::StackId'
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
@@ -91,15 +67,7 @@ Resources:
     Properties:
       TableName: !Sub
         - AlienCards-${UniqueId}
-        - UniqueId: !Select
-            - 0
-            - !Split
-              - '-'
-              - !Select
-                - 2
-                - !Split
-                  - /
-                  - !Ref 'AWS::StackId'
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
       KeySchema:
         - AttributeName: CardId
           KeyType: HASH
@@ -116,15 +84,7 @@ Resources:
     Properties:
       BucketName: !Sub
         - alien-cards-${UniqueId}
-        - UniqueId: !Select
-            - 0
-            - !Split
-              - '-'
-              - !Select
-                - 2
-                - !Split
-                  - /
-                  - !Ref 'AWS::StackId'
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
   AlienCardsS3BucketPolicy:
     Type: AWS::S3::BucketPolicy
     DependsOn:
@@ -148,15 +108,7 @@ Resources:
       CloudFrontOriginAccessIdentityConfig:
         Comment: !Sub
           - OAI For Lambda@Edge Workshop ${UniqueId}
-          - UniqueId: !Select
-              - 0
-              - !Split
-                - '-'
-                - !Select
-                  - 2
-                  - !Split
-                    - /
-                    - !Ref 'AWS::StackId'
+          - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
   AlienCardsCloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
     DependsOn:

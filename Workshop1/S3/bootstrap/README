@@ -1,6 +1,6 @@
-aws cloudformation validate-template --template-body file://cfn-template.json
+aws cloudformation validate-template --template-body file://cfn-template.yml
 
-aws cloudformation create-stack --stack-name WsLambdaAtEdgeAlienCards --template-body file://cfn-template.json --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation create-stack --region us-east-1 --stack-name WsLambdaAtEdgeAlienCards1 --template-body file://cfn-template.yml --capabilities CAPABILITY_NAMED_IAM
 
-aws cloudformation delete-stack --stack-name WsLambdaAtEdgeAlienCards
+aws cloudformation delete-stack --region us-east-1 --stack-name WsLambdaAtEdgeAlienCards1
 

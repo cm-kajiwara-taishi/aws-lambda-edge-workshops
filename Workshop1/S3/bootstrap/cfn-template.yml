@@ -1,0 +1,320 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters: {}
+Resources:
+  IamLambdaExecutionRoleBasic:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub
+        - ws-lambda-at-edge-basic-${UniqueId}
+        - UniqueId: !Select
+            - 0
+            - !Split
+              - '-'
+              - !Select
+                - 2
+                - !Split
+                  - /
+                  - !Ref 'AWS::StackId'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - edgelambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  IamLambdaExecutionRoleReadOnly:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub
+        - ws-lambda-at-edge-read-only-${UniqueId}
+        - UniqueId: !Select
+            - 0
+            - !Split
+              - '-'
+              - !Select
+                - 2
+                - !Split
+                  - /
+                  - !Ref 'AWS::StackId'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - edgelambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  IamLambdaExecutionRoleFullAccess:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub
+        - ws-lambda-at-edge-full-access-${UniqueId}
+        - UniqueId: !Select
+            - 0
+            - !Split
+              - '-'
+              - !Select
+                - 2
+                - !Split
+                  - /
+                  - !Ref 'AWS::StackId'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - edgelambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  AlienCardsDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub
+        - AlienCards-${UniqueId}
+        - UniqueId: !Select
+            - 0
+            - !Split
+              - '-'
+              - !Select
+                - 2
+                - !Split
+                  - /
+                  - !Ref 'AWS::StackId'
+      KeySchema:
+        - AttributeName: CardId
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: CardId
+          AttributeType: S
+      ProvisionedThroughput:
+        ReadCapacityUnits: '5'
+        WriteCapacityUnits: '5'
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+  AlienCardsS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub
+        - alien-cards-${UniqueId}
+        - UniqueId: !Select
+            - 0
+            - !Split
+              - '-'
+              - !Select
+                - 2
+                - !Split
+                  - /
+                  - !Ref 'AWS::StackId'
+  AlienCardsS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn:
+      - AlienCardsS3Bucket
+    Properties:
+      Bucket: !Ref 'AlienCardsS3Bucket'
+      PolicyDocument:
+        Id: PolicyForCloudFrontPrivateContent
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity
+                ${AlienCardsCloudFrontOAI}'
+            Action: s3:GetObject
+            Resource: !Sub
+              - ${AlienCardsS3BucketArn}/*
+              - AlienCardsS3BucketArn: !GetAtt 'AlienCardsS3Bucket.Arn'
+  AlienCardsCloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub
+          - OAI For Lambda@Edge Workshop ${UniqueId}
+          - UniqueId: !Select
+              - 0
+              - !Split
+                - '-'
+                - !Select
+                  - 2
+                  - !Split
+                    - /
+                    - !Ref 'AWS::StackId'
+  AlienCardsCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - AlienCardsS3Bucket
+      - AlienCardsCloudFrontOAI
+    Properties:
+      DistributionConfig:
+        Comment: !Sub
+          - Lambda@Edge Workshop ${UniqueId}
+          - UniqueId: !Select
+              - 0
+              - !Split
+                - '-'
+                - !Select
+                  - 2
+                  - !Split
+                    - /
+                    - !Ref 'AWS::StackId'
+        Origins:
+          - Id: AlienCardsS3BucketOriginId
+            DomainName: !GetAtt 'AlienCardsS3Bucket.RegionalDomainName'
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${AlienCardsCloudFrontOAI}'
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          TargetOriginId: AlienCardsS3BucketOriginId
+          ViewerProtocolPolicy: allow-all
+          ForwardedValues:
+            Headers: []
+            Cookies:
+              Forward: none
+            QueryString: false
+            QueryStringCacheKeys: []
+          MinTTL: 0
+          MaxTTL: 600
+          DefaultTTL: 60
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        HttpVersion: http2
+        PriceClass: PriceClass_All
+        IPV6Enabled: true
+        Enabled: true
+        CustomErrorResponses:
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 400
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 403
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 404
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 405
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 500
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 501
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 502
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 503
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 504
+  BootstrapFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Runtime: nodejs8.10
+      Timeout: 60
+      Role: !GetAtt 'IamLambdaExecutionRoleFullAccess.Arn'
+      Code:
+        ZipFile:  |
+          const AWS = require('aws-sdk');
+          const s3 = new AWS.S3({region: 'us-east-1'});
+          const ddb = new AWS.DynamoDB({region: 'us-east-1', apiVersion: '2012-10-08'});
+          const cfn = require('cfn-response');
+          
+          const {promisify} = require('util');
+          const cfnSend = promisify(cfn.send);
+          
+          exports.handler = async (event, context) => {
+              console.log('event: ' + JSON.stringify(event, null, 2));
+              console.log('context: ' + JSON.stringify(context, null, 2));
+              try {
+                  if (event.RequestType == 'Create' || event.RequestType == 'Update') {
+                      await Promise.all([bootstrapS3(event), bootstrapDDB(event)]);
+                  } else if (event.RequestType == 'Delete') {
+                      await Promise.all([cleanupS3(event)]);
+                  }
+                  await cfnSend(event, context, cfn.SUCCESS);
+              } catch (err) {
+                  console.log(err);
+                  await cfnSend(event, context, cfn.FAILED, err);
+              }
+          };
+          
+          async function bootstrapS3(event) {
+              const srcBucket = event.ResourceProperties.SrcS3Bucket;
+              const dstBucket = event.ResourceProperties.DstS3Bucket;
+              let objects = await s3.listObjects({ Bucket: srcBucket }).promise();
+              await Promise.all(
+                  objects.Contents
+                  .map(obj => { return obj.Key; })
+                  .filter(key => { return !key.startsWith('bootstrap'); })
+                  .map(async key => {
+                      console.log(`getting ${key}`);
+                      let data = await s3.getObject({
+                          Bucket: srcBucket, Key: key
+                      }).promise();
+                      console.log(`copying ${data.ContentLength} bytes of ${key}`);
+                      await s3.putObject({
+                          Bucket: dstBucket, Key: key, 
+                          Body: data.Body, ContentType: data.ContentType
+                      }).promise();
+                  })
+              );
+          }
+          
+          async function cleanupS3(event) {
+              const dstBucket = event.ResourceProperties.DstS3Bucket;
+              let objects = await s3.listObjects({ Bucket: dstBucket }).promise();
+              await Promise.all(
+                  objects.Contents
+                  .map(obj => { return obj.Key; })
+                  .map(async key => {
+                      console.log(`deleting ${key}`);
+                      let data = await s3.deleteObject({
+                          Bucket: dstBucket, Key: key
+                      }).promise();
+                  })
+              );
+          }
+          
+          async function bootstrapDDB(event) {
+              const srcBucket = event.ResourceProperties.SrcS3Bucket;
+              const ddbTableName = event.ResourceProperties.DdbTableName;
+              let data = await s3.getObject({ 
+                  Bucket: srcBucket, Key: 'bootstrap/cards.json'
+              }).promise();
+              await Promise.all(
+                  JSON.parse(data.Body)
+                  .map(card => 
+                      ddb.putItem({
+                          TableName: ddbTableName,
+                          Item: { 
+                              CardId: { 'S': card.CardId }, 
+                              Description: { 'S': card.Description }, 
+                              Likes: { 'N': '0' } 
+                          }
+                      }).promise()
+                  )
+              );
+          }
+  BootstrapCustomResource:
+    Type: Custom::BootstrapFunction
+    DependsOn:
+      - AlienCardsS3Bucket
+      - AlienCardsDynamoDBTable
+    Properties:
+      ServiceToken: !GetAtt 'BootstrapFunction.Arn'
+      SrcS3Bucket: ws-lambda-at-edge
+      DstS3Bucket: !Ref 'AlienCardsS3Bucket'
+      DdbTableName: !Ref 'AlienCardsDynamoDBTable'

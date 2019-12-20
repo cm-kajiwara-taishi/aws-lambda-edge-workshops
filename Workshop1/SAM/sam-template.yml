@@ -1,0 +1,324 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  IamLambdaExecutionRoleBasic:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub
+        - ws-lambda-at-edge-basic-${UniqueId}
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - edgelambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  IamLambdaExecutionRoleReadOnly:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub
+        - ws-lambda-at-edge-read-only-${UniqueId}
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - edgelambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  IamLambdaExecutionRoleFullAccess:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub
+        - ws-lambda-at-edge-full-access-${UniqueId}
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - edgelambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  AlienCardsDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: AlienCards
+      # TableName: !Sub
+      #   - AlienCards-${UniqueId}
+      #   - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
+      KeySchema:
+        - AttributeName: CardId
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: CardId
+          AttributeType: S
+      ProvisionedThroughput:
+        ReadCapacityUnits: '5'
+        WriteCapacityUnits: '5'
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+  AlienCardsS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub
+        - alien-cards-${UniqueId}
+        - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
+  AlienCardsS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn:
+      - AlienCardsS3Bucket
+    Properties:
+      Bucket: !Ref 'AlienCardsS3Bucket'
+      PolicyDocument:
+        Id: PolicyForCloudFrontPrivateContent
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity
+                ${AlienCardsCloudFrontOAI}'
+            Action: s3:GetObject
+            Resource: !Sub
+              - ${AlienCardsS3BucketArn}/*
+              - AlienCardsS3BucketArn: !GetAtt 'AlienCardsS3Bucket.Arn'
+  AlienCardsCloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub
+          - OAI For Lambda@Edge Workshop ${UniqueId}
+          - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
+  AlienCardsCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - BootstrapCustomResource
+      - LambdaEdgeAddSecurityHeadersAliaslive
+      - LambdaEdgeGenerateHomePageAliaslive
+      - LambdaEdgeGenerateCardPageAliaslive
+      - LambdaEdgeApiLikeAliaslive
+      - LambdaEdgeRedirectAliaslive
+      - LambdaEdgeCustomizeCssAliaslive
+    Properties:
+      DistributionConfig:
+        Comment: !Sub
+          - Lambda@Edge Workshop ${UniqueId}
+          - UniqueId: !Select [0, !Split ['-', !Select [2, !Split [ '/', !Ref 'AWS::StackId' ]]]]
+        Origins:
+          - Id: AlienCardsS3BucketOriginId
+            DomainName: !GetAtt 'AlienCardsS3Bucket.RegionalDomainName'
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${AlienCardsCloudFrontOAI}'
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          TargetOriginId: AlienCardsS3BucketOriginId
+          ViewerProtocolPolicy: redirect-to-https
+          ForwardedValues:
+            Headers: []
+            Cookies:
+              Forward: none
+            QueryString: false
+            QueryStringCacheKeys: []
+          MinTTL: 0
+          MaxTTL: 600
+          DefaultTTL: 60
+          LambdaFunctionAssociations: 
+            - 
+              EventType: "origin-response"
+              LambdaFunctionARN: !Ref LambdaEdgeAddSecurityHeaders.Version
+            - 
+              EventType: "origin-request"
+              LambdaFunctionARN: !Ref LambdaEdgeGenerateCardPage.Version
+        CacheBehaviors: 
+          - 
+            PathPattern: "/index.html"
+            TargetOriginId: "AlienCardsS3BucketOriginId"
+            ViewerProtocolPolicy: "redirect-to-https"
+            MinTTL: 0
+            MaxTTL: 5
+            DefaultTTL: 5
+            ForwardedValues: 
+                QueryString: false
+            LambdaFunctionAssociations: 
+              - 
+                EventType: "origin-request"
+                LambdaFunctionARN: !Ref LambdaEdgeGenerateHomePage.Version
+          - 
+            PathPattern: "/api/like"
+            TargetOriginId: "AlienCardsS3BucketOriginId"
+            ViewerProtocolPolicy: "redirect-to-https"
+            AllowedMethods: 
+              - "HEAD"
+              - "DELETE"
+              - "POST"
+              - "GET"
+              - "OPTIONS"
+              - "PUT"
+              - "PATCH"
+            ForwardedValues: 
+                QueryString: true
+            LambdaFunctionAssociations: 
+              - 
+                EventType: "origin-request"
+                LambdaFunctionARN: !Ref LambdaEdgeApiLike.Version
+          - 
+            PathPattern: "/r/*"
+            TargetOriginId: "AlienCardsS3BucketOriginId"
+            ViewerProtocolPolicy: "redirect-to-https"
+            ForwardedValues: 
+                QueryString: false
+            LambdaFunctionAssociations: 
+              - 
+                EventType: "origin-request"
+                LambdaFunctionARN: !Ref LambdaEdgeRedirect.Version
+          - 
+            PathPattern: "/css/*"
+            TargetOriginId: "AlienCardsS3BucketOriginId"
+            ViewerProtocolPolicy: "redirect-to-https"
+            ForwardedValues: 
+                Headers: 
+                  - "CloudFront-Is-Desktop-Viewer"
+                QueryString: false
+            LambdaFunctionAssociations: 
+              - 
+                EventType: "origin-request"
+                LambdaFunctionARN: !Ref LambdaEdgeCustomizeCss.Version
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        HttpVersion: http2
+        PriceClass: PriceClass_200
+        IPV6Enabled: true
+        Enabled: true
+        CustomErrorResponses:
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 400
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 403
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 404
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 405
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 500
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 501
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 502
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 503
+          - ErrorCachingMinTTL: 5
+            ErrorCode: 504
+
+  BootstrapFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Runtime: nodejs10.x
+      Timeout: 60
+      Role: !GetAtt 'IamLambdaExecutionRoleFullAccess.Arn'
+      CodeUri: bootstrap/
+
+  BootstrapCustomResource:
+    Type: Custom::BootstrapFunction
+    DependsOn:
+      - AlienCardsS3Bucket
+      - AlienCardsDynamoDBTable
+    Properties:
+      ServiceToken: !GetAtt 'BootstrapFunction.Arn'
+      SrcS3Bucket: ws-lambda-at-edge
+      DstS3Bucket: !Ref 'AlienCardsS3Bucket'
+      DdbTableName: !Ref 'AlienCardsDynamoDBTable'
+
+  LambdaEdgeGenerateCardPage:
+    Type: AWS::Serverless::Function
+    Properties:
+      # FunctionName: "ws-lambda-at-edge-generate-card-page"
+      Handler: "index.handler"
+      CodeUri: generate-card-page/
+      # Environment:
+      #   Variables:
+      #     DDB_TABLE_NAME: !Ref AlienCardsDynamoDBTable
+      Role: !GetAtt IamLambdaExecutionRoleReadOnly.Arn
+      Runtime: "nodejs10.x"
+      AutoPublishAlias: live
+
+  LambdaEdgeRedirect:
+    Type: AWS::Serverless::Function
+    Properties:
+      # FunctionName: "ws-lambda-at-edge-redirect"
+      Handler: "index.handler"
+      CodeUri: redirect/
+      Role: !GetAtt IamLambdaExecutionRoleBasic.Arn
+      Runtime: "nodejs10.x"
+      AutoPublishAlias: live
+
+  LambdaEdgeGenerateHomePage:
+    Type: AWS::Serverless::Function
+    Properties:
+      # FunctionName: "ws-lambda-at-edge-generate-home-page"
+      Handler: "index.handler"
+      CodeUri: generate-home-page/
+      # Environment:
+      #   Variables:
+      #     DDB_TABLE_NAME: !Ref AlienCardsDynamoDBTable
+      Role: !GetAtt IamLambdaExecutionRoleReadOnly.Arn
+      Runtime: "nodejs10.x"
+      AutoPublishAlias: live
+
+  LambdaEdgeApiLike:
+    Type: AWS::Serverless::Function
+    Properties:
+      # FunctionName: "ws-lambda-at-edge-api-like"
+      Handler: "index.handler"
+      CodeUri: api-like/
+      # Environment:
+      #   Variables:
+      #     DDB_TABLE_NAME: !Ref AlienCardsDynamoDBTable
+      Role: !GetAtt IamLambdaExecutionRoleFullAccess.Arn
+      Runtime: "nodejs10.x"
+      AutoPublishAlias: live
+
+  LambdaEdgeCustomizeCss:
+    Type: AWS::Serverless::Function
+    Properties:
+      # FunctionName: "ws-lambda-at-edge-customize-css"
+      Handler: "index.handler"
+      CodeUri: customize-css/
+      Role: !GetAtt IamLambdaExecutionRoleBasic.Arn
+      Runtime: "nodejs10.x"
+      AutoPublishAlias: live
+
+  LambdaEdgeAddSecurityHeaders:
+    Type: AWS::Serverless::Function
+    Properties:
+      # FunctionName: "ws-lambda-at-edge-add-security-headers"
+      Handler: "index.handler"
+      CodeUri: add-security-headers/
+      Role: !GetAtt IamLambdaExecutionRoleBasic.Arn
+      Runtime: "nodejs10.x"
+      AutoPublishAlias: live
+Outputs:
+  AlienCardsCloudFrontDistributionDomainName:
+    Value: !Sub "https://${AlienCardsCloudFrontDistribution.DomainName}"

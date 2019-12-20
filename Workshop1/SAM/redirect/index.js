@@ -8,12 +8,12 @@ exports.handler = async (event) => {
     // For demo purposes, we simply hardcode it here
 
     const redirects = {
-        '/r/music':    '/card/bcbd2481',
-        '/r/tree':     '/card/da8398f4',
-        '/r/food':     '/card/e51c848c',
+        '/r/music': '/card/bcbd2481',
+        '/r/tree': '/card/da8398f4',
+        '/r/food': '/card/e51c848c',
         '/r/computer': '/card/fe2f80a7',
-        '/r/cat':      '/card/k9b430fc',
-        '/r/beer':     '/card/vc7efa69',
+        '/r/cat': '/card/k9b430fc',
+        '/r/beer': '/card/vc7efa69',
     };
 
     if (redirects[request.uri]) {

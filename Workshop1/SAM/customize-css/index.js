@@ -11,7 +11,7 @@ exports.handler = async (event) => {
         request.headers['cloudfront-is-desktop-viewer'][0].value !== 'true') {
 
         // it's not a desktop (it's  mobile, tablet or tv), use the mobile css
-        request.uri = request.uri.replace(new RegExp('^/css/'),'/css/mobile/');
+        request.uri = request.uri.replace(new RegExp('^/css/'), '/css/mobile/');
     }
     return request;
 };

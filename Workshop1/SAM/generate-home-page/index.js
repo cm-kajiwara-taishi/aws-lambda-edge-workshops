@@ -2,7 +2,7 @@
 
 const http = require('https');
 const AWS = require('aws-sdk');
-const ddb = new AWS.DynamoDB.DocumentClient({apiVersion: '2012-10-08', region: 'us-east-1'});
+const ddb = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-10-08', region: 'us-east-1' });
 
 // Copy DynamoDB table name here, for example, 'AlienCards-1201c610'
 // const ddbTableName = process.env.DDB_TABLE_NAME;
@@ -27,7 +27,7 @@ exports.handler = async (event) => {
         const data = responses[1];
 
         const items = data.Items
-              .sort((a, b) => { return (a.Likes > b.Likes) ? -1 : 1; });
+            .sort((a, b) => { return (a.Likes > b.Likes) ? -1 : 1; });
         console.log('ddb sorted items: ' + JSON.stringify(items, null, 2));
 
         let html = template;

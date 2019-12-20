@@ -2,7 +2,7 @@
 
 const QS = require('querystring');
 const AWS = require('aws-sdk');
-const ddb = new AWS.DynamoDB.DocumentClient({apiVersion: '2012-10-08', region: 'us-east-1'});
+const ddb = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-10-08', region: 'us-east-1' });
 
 // Copy your DynamoDB table name here, for example, 'AlienCards-1201c610'
 // const ddbTableName = process.env.DDB_TABLE_NAME;
@@ -13,7 +13,7 @@ exports.handler = async (event) => {
     console.log('Event: ', JSON.stringify(event, null, 2));
     const request = event.Records[0].cf.request;
     const params = QS.parse(request.querystring);
-    
+
     if (request.method != 'POST') {
         return getResponse({
             status: '400', body: { error: "Bad HTTP verb, expecting POST" }
